@@ -39,12 +39,45 @@ class Activation_Softmax:
         # Takes in a matrix and returns the probability of each value
         exp_values = np.exp(inputs - np.max(inputs, axis=1, keepdims=True)) # Makes the exponent matrix [e^1, e^2, ...]
         probabilities = exp_values / np.sum(exp_values, axis=1, keepdims=True) # Divides each exponent with sum of exponent rows
-        self.output = exp_values
+        self.output = probabilities
+
+class Loss_CategoricalCrossentropy:
+    def forward(self, y_pred, y_true):
+        # Ignore predictions which are too close to 0 or 1
+        y_pred_clipped = np.clip(y_pred, 1e-7, 1-1e-7)
+
+        if len(y_true.shape) == 1: # Correct color array is in the form of [0] or [1] or [2]
+            samples = len(y_pred)
+            correct_confidences = y_pred_clipped[range(samples), y_true]
+
+        elif len(y_true.shape) == 2: # Correct color array is in the form [1,0,0] or [0,1,0] or [0,0,1]
+            correct_confidences = np.sum(y_pred_clipped*y_true, axis=1) # Result will be [0.7, 0.8, 0.4] instead of [[0.7 ,0 ,0], [0, 0.8, 0], [0, 0.4, 0]], by using np.sum
+
+        # calculate loss:
+        negative_log_likelihoods = -np.log(correct_confidences)
+        return negative_log_likelihoods
+
+
+
 
 
 X, y = spiral_data(samples=100, classes=3)
 
+dense1 = Layer_Dense(2, 3)
+activation1 = Activation_ReLU()
 
+dense2 = Layer_Dense(3,3)
+activation2 = Activation_Softmax()
+
+dense1.forward(X)
+
+activation1.forward(dense1.output)
+
+dense2.forward(activation1.output)
+
+activation2.forward(dense2.output)
+
+print(activation2.output[0:5])
 
 
 # A = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
