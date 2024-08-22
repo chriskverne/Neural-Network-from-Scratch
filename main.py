@@ -1,5 +1,5 @@
 import numpy as np
-from nnfs.datasets import spiral_data
+from nnfs.datasets import spiral_data, vertical_data
 import nnfs
 
 nnfs.init()
@@ -57,28 +57,61 @@ class Loss_CategoricalCrossentropy:
         negative_log_likelihoods = -np.log(correct_confidences)
         return negative_log_likelihoods
 
+    def calculate(self, output, y):
+        # Calculate sample losses
+        sample_losses = self.forward(output, y)
+        # Calculate mean loss
+        data_loss = np.mean(sample_losses)
+        # Return loss
+        return data_loss
 
-
-
-
-X, y = spiral_data(samples=100, classes=3)
-
-dense1 = Layer_Dense(2, 3)
+# Adjusting weight and biases randomly:
+X, y = vertical_data(samples=100, classes=3)
+# Create model:
+dense1 = Layer_Dense(2,3)
 activation1 = Activation_ReLU()
 
 dense2 = Layer_Dense(3,3)
 activation2 = Activation_Softmax()
 
-dense1.forward(X)
+loss_function = Loss_CategoricalCrossentropy()
 
-activation1.forward(dense1.output)
+lowest_loss = float('inf')
+best_dense1_weights = dense1.weights.copy()
+best_dense1_biases = dense1.biases.copy()
+best_dense2_weights = dense2.weights.copy()
+best_dense2_biases = dense2.biases.copy()
 
-dense2.forward(activation1.output)
+for i in range(500):
+    dense1.weights += 0.05 * np.random.randn(2,3) # Returns a normally distrubuted random number witht he shape 2x3 (3 neurons have 2 weights each)
+    dense1.biases += 0.05 * np.random.randn(1,3) # Returns a normally distributed random number with the shape 1x3 (3 neurons, 1 for each)
+    dense2.weights += 0.05 * np.random.randn(3,3)
+    dense2.biases += 0.05 * np.random.randn(1, 3)
 
-activation2.forward(dense2.output)
+    dense1.forward(X)
+    activation1.forward(dense1.output)
 
-print(activation2.output[0:5])
+    dense2.forward(activation1.output)
+    activation2.forward(dense2.output)
 
+    loss = loss_function.calculate(activation2.output, y)
+
+    # We chose the highest probability as the prediction
+    predictions = np.argmax(activation2.output, axis=1)
+    accuracy = np.mean(predictions == y)
+
+    if loss < lowest_loss:
+        print('new set of weights found iteration: ', i, 'loss: ', loss, 'accuracy: ', accuracy)
+        best_dense1_weights = dense1.weights.copy()
+        best_dense1_biases = dense1.biases.copy()
+        best_dense2_weights = dense2.weights.copy()
+        best_dense2_biases = dense2.biases.copy()
+        lowest_loss = loss
+    else:
+        dense1.weights = best_dense1_weights.copy()
+        dense1.biases = best_dense1_biases.copy()
+        dense2.weights = best_dense2_weights.copy()
+        dense2.biases = best_dense2_biases.copy()
 
 # A = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
 #print(np.sum(A))  # sums up each number 45
