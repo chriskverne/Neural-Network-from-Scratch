@@ -1,34 +1,31 @@
 import numpy as np
 from nnfs.datasets import spiral_data, vertical_data
 import nnfs
-
-nnfs.init()
 import matplotlib.pyplot as plt
 
+nnfs.init()
 
-# plt.scatter(X[:,0], X[:,1])
-# plt.show()
 
-# number of neurons (let's say 3)
-# number of inputs (let's say 2)
-# class will initialize random weights and biases of each neuron
-# class will take in an input and give an output
-# output is np.dot(X, W) + b
-# where X is input vector (Horizontal), W is weight matrix (vertical), b is bias
+# Layer class of Neural netowrk
 class Layer_Dense:
     # Will intialize weight matrix with correct dimensions and random weights and biases
     def __init__(self, num_inputs, num_neurons):
-        # Rows = weight each neuron (y)
-        # Columns = input each neuron (x)
         # Dimension of layer: inputs * neurons
-        # Each layer will be a weight matrix and bias matrix
-        # the bias matrix represents each neurons weight (one row)
         self.weights = 0.01 * np.random.randn(num_inputs, num_neurons)
         self.biases = np.zeros((1, num_neurons))  # Initialized as 0 for now
 
     # will return an output based on the inputs and weight + bias matrix
     def forward(self, inputs):
         self.output = np.dot(inputs, self.weights) + self.biases
+
+    # Backpropagation: dvalues is dL_dZ (derivative of loss respect to output of this layer)
+    def backward(self, dvalues):
+        # to get dL_dW (derivative loss respect weights) you take dL_dZ * X(T) 
+        self.dweights = np.dot(dvalues, self.inputs.T)
+        # to get dL_dB (derivative loss respect biases) you take dL_dZ
+        self.dbiases = np.sum(dvalues, axis=0, keepdims=True) # Sum rows
+        # to get dL_dX (derivative loss respect inputs) you take dL_dZ * W(T) 
+        self.dinputs = np.dot(dvalues, self.weights.T)
 
 class Activation_ReLU:
     def forward(self, inputs):
@@ -46,7 +43,7 @@ class Loss_CategoricalCrossentropy:
         # Ignore predictions which are too close to 0 or 1
         y_pred_clipped = np.clip(y_pred, 1e-7, 1-1e-7)
 
-        if len(y_true.shape) == 1: # Correct color array is in the form of [0] or [1] or [2]
+        if len(y_true.shape) == 1: # correct_color array is in the form of [0] or [1] or [2]
             samples = len(y_pred)
             correct_confidences = y_pred_clipped[range(samples), y_true]
 
@@ -82,7 +79,7 @@ best_dense1_biases = dense1.biases.copy()
 best_dense2_weights = dense2.weights.copy()
 best_dense2_biases = dense2.biases.copy()
 
-for i in range(500):
+for i in range(300):
     dense1.weights += 0.05 * np.random.randn(2,3) # Returns a normally distrubuted random number witht he shape 2x3 (3 neurons have 2 weights each)
     dense1.biases += 0.05 * np.random.randn(1,3) # Returns a normally distributed random number with the shape 1x3 (3 neurons, 1 for each)
     dense2.weights += 0.05 * np.random.randn(3,3)
