@@ -31,6 +31,11 @@ class Activation_ReLU:
     def forward(self, inputs):
         self.output = np.maximum(0, inputs)
 
+    def backward(self, dvalues):
+        self.dinputs = dvalues.copy()
+        # dvalues = dL_da, da_dz = dL_dZ * (0 or 1 based on inputs X)
+        self.dinputs[self.inputs < 0] = 0
+
 class Activation_Softmax:
     def forward(self, inputs):
         # Takes in a matrix and returns the probability of each value
