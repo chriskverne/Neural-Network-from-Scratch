@@ -3,9 +3,6 @@ from nnfs.datasets import spiral_data, vertical_data
 import nnfs
 import matplotlib.pyplot as plt
 
-nnfs.init()
-
-
 # Layer class of Neural netowrk
 class Layer_Dense:
     # Will intialize weight matrix with correct dimensions and random weights and biases
@@ -33,7 +30,7 @@ class Activation_ReLU:
 
     def backward(self, dvalues):
         self.dinputs = dvalues.copy()
-        # dvalues = dL_da, da_dz = dL_dZ * (0 or 1 based on inputs X)
+        # dvalues = dL_da, dL_dz = dL_da * da_dZ (da_dz = 0 or 1 based on input Z)
         self.dinputs[self.inputs < 0] = 0
 
 class Activation_Softmax:
@@ -42,6 +39,30 @@ class Activation_Softmax:
         exp_values = np.exp(inputs - np.max(inputs, axis=1, keepdims=True)) # Makes the exponent matrix [e^1, e^2, ...]
         probabilities = exp_values / np.sum(exp_values, axis=1, keepdims=True) # Divides each exponent with sum of exponent rows
         self.output = probabilities
+
+class Activation_Softmax_Loss_CategoricalCrossentropy:
+    def __init__(self):
+        self.activation = Activation_Softmax()
+        self.loss = Loss_CategoricalCrossentropy()
+    
+    def forward(self, inputs, y_true):
+        # Calculate probabilities (Softmax)
+        self.activation.forward(inputs)
+        self.output = self.activation.output
+        # Calculate loss of probabilities (Cross entropy)
+        return self.loss.calculate(self.output, y_true)
+    
+    def backward(self, dvalues, y_true):
+        # dvalues = predicted values [0.1, 0.7, 0.2], y_true = answer [0, 1, 0]
+        samples = len(dvalues)
+        if len(y_true.shape) == 2:
+            y_true = np.argmax(y_true, axis=1)
+
+        self.dinputs = dvalues.copy()
+        # dL_dz = predicted - ans
+        self.dinputs[range(samples), y_true] -= 1
+        # normalize dL_dz with number of samples
+        self.dinputs = self.dinputs / samples
 
 class Loss_CategoricalCrossentropy:
     def forward(self, y_pred, y_true):
@@ -58,6 +79,15 @@ class Loss_CategoricalCrossentropy:
         # calculate loss:
         negative_log_likelihoods = -np.log(correct_confidences)
         return negative_log_likelihoods
+    
+    def backward(self, dvalues, y_true):
+        samples = len(dvalues)
+        labels = len(dvalues[0])
+        if len(y_true.shape) == 1:
+            y_true = np.eye(labels)[y_true]
+        # dL_dy = y_ans / y_guess
+        self.dinputs = -y_true / dvalues
+        self.dinputs = self.dinputs / samples
 
     def calculate(self, output, y):
         # Calculate sample losses
@@ -68,6 +98,7 @@ class Loss_CategoricalCrossentropy:
         return data_loss
 
 # Adjusting weight and biases randomly:
+nnfs.init()
 X, y = vertical_data(samples=100, classes=3)
 # Create model:
 dense1 = Layer_Dense(2,3)
