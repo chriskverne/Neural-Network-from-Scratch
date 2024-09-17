@@ -120,58 +120,105 @@ class Activation_Softmax_Loss_CategoricalCrossentropy:
 
 # SGD optimizer
 class Optimizer_SGD:
-    def __init__(self, learning_rate=3, decay=0):
+    def __init__(self, learning_rate=1., decay=0., momentum=0.):
         self.learning_rate = learning_rate
         self.current_learning_rate = learning_rate
         self.decay = decay
         self.iterations = 0
+        self.momentum = momentum
 
+    # Call once before any parameter updates
     def pre_update_params(self):
-        # learning_rate = old_rate / (1 + decay * iterations)
         if self.decay:
-            self.current_learning_rate = self.learning_rate  / (1 + self.decay * self.iterations)
+            # learning rate = intial_learning_rate / (1 + decay * current_iteration) (Will decrease over time)
+            self.current_learning_rate = self.learning_rate / (1. + self.decay * self.iterations)
 
+    # Update parameters
     def update_params(self, layer):
+        if self.momentum:
+            # Initalize momentums as 0
+            if not hasattr(layer, 'weight_momentums'):
+                layer.weight_momentums = np.zeros_like(layer.weights)
+                layer.bias_momentums = np.zeros_like(layer.biases)
+
+            # new_weight = old_weight - (a * dL_dW) + (Mom_factor * prev_weight_updates)
+            # prev_weight_updates is the direction and magnitude we changed the previous weights
+            weight_updates = (self.momentum * layer.weight_momentums) - (self.current_learning_rate * layer.dweights)
+            layer.weight_momentums = weight_updates
+
+            # new_bias = old_bias - (a * dL_dB) + (Mom_factor * prev_bias_updates)
+            # prev_bias_updates is the direction and magnitude we changed the previous biases
+            bias_updates = self.momentum * layer.bias_momentums - self.current_learning_rate * layer.dbiases
+            layer.bias_momentums = bias_updates
+
+        # SGD without momentum
+        else:
+            # new_weight = old_weight - (a * dL_dW)
+            weight_updates = -self.current_learning_rate * layer.dweights
+            # new_bias = old_bias - (a * dL_dB)
+            bias_updates = -self.current_learning_rate * layer.dbiases
+
         # Update weights and biases
-        layer.weights += -self.current_learning_rate * layer.dweights
-        layer.biases += -self.current_learning_rate * layer.dbiases
-    
+        layer.weights += weight_updates
+        layer.biases += bias_updates
+
+    # Call once after any parameter updates
     def post_update_params(self):
         self.iterations += 1
 
+
 # Build Model
 dense1 = Layer_Dense(2, 64)
+
+# Create ReLU activation (to be used with Dense layer)
 activation1 = Activation_ReLU()
+
+# Create second Dense layer with 64 input features (as we take output
+# of previous layer here) and 3 output values (output values)
 dense2 = Layer_Dense(64, 3)
+
+# Create Softmax classifier's combined loss and activation
 loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
-optimizer = Optimizer_SGD(decay=0.001)
 
-# Train model
+# Create optimizer
+optimizer = Optimizer_SGD(decay=1e-3, momentum=0.9)
+
+# Train in loop
 for epoch in range(10001):
-    # Forward pass
+    # Perform a forward pass of our training data through this layer
     dense1.forward(X)
+    
+    # Perform a forward pass through activation function
+    # takes the output of first dense layer here
     activation1.forward(dense1.output)
+    
+    # Perform a forward pass through second Dense layer
+    # takes outputs of activation function of first layer as inputs
     dense2.forward(activation1.output)
+    
+    # Perform a forward pass through the activation/loss function
+    # takes the output of second dense layer here and returns loss
     loss = loss_activation.forward(dense2.output, y)
-    learning_rate = optimizer.current_learning_rate
-
-    # Calculate accuracy
+    
+    # Calculate accuracy from output of activation2 and targets
+    # calculate values along first axis
     predictions = np.argmax(loss_activation.output, axis=1)
     if len(y.shape) == 2:
         y = np.argmax(y, axis=1)
     accuracy = np.mean(predictions == y)
+    
     if not epoch % 100:
         print(f'epoch: {epoch}, ' +
               f'acc: {accuracy:.3f}, ' +
-              f'loss: {loss:.3f},' + 
-              f'Learning rate: {learning_rate}')
-        
+              f'loss: {loss:.3f}, ' +
+              f'lr: {optimizer.current_learning_rate}')
+    
     # Backward pass
     loss_activation.backward(loss_activation.output, y)
     dense2.backward(loss_activation.dinputs)
     activation1.backward(dense2.dinputs)
     dense1.backward(activation1.dinputs)
-
+    
     # Update weights and biases
     optimizer.pre_update_params()
     optimizer.update_params(dense1)
