@@ -166,6 +166,68 @@ class Optimizer_SGD:
     def post_update_params(self):
         self.iterations += 1
 
+class Optimizer_Adagrad:
+    def __init__(self, learning_rate=1, decay=0, epsilon=1e-7):
+        self.learning_rate = learning_rate
+        self.current_learning_rate = learning_rate
+        self.decay = decay
+        self.iterations = 0
+        self.epsilon = epsilon
+    
+    # Decrease learning rate iterativly
+    def pre_update_params(self):
+        if self.decay:
+            self.current_learning_rate = self.learning_rate / (1 + self.decay * self.iterations)
+
+    def update_params(self, layer):
+        # Create a weight cache for the layers
+        if not hasattr(layer, 'weight_cache'):
+            layer.weight_cache = np.zeros_like(layer.weights)
+            layer.bias_cache = np.zeros_like(layer.biases)
+
+        # Update weight cache
+        layer.weight_cache += layer.dweights**2 # Add current weight gradient squared
+        layer.bias_cache += layer.dbiases**2 # Add current bias gradient squared
+
+        # W(x+1) = W(x) - a*dL_dW / (sqrt(Wcache) + ep) We now divide by the cache to make it change slower
+        # Vanilla SGD without optimizer, divided by sqrt of cache
+        layer.weights += -self.current_learning_rate * layer.dweights / (np.sqrt(layer.weight_cache) + self.epsilon)
+        layer.biases += -self.current_learning_rate  * layer.dbiases / (np.sqrt(layer.bias_cache) + self.epsilon)
+
+    def post_update_params(self):
+        self.iterations += 1
+
+class Optimizer_RMSprop:
+    def __init__(self, learning_rate=1, decay=0, epsilon=1e-7, rho=0.9):
+        self.learning_rate = learning_rate
+        self.current_learning_rate = learning_rate
+        self.decay = decay
+        self.iterations = 0
+        self.epsilon = epsilon
+        self.rho = rho
+    
+    # Call once before any parameter updates
+    def pre_update_params(self):
+        if self.decay:
+            # learning rate = intial_learning_rate / (1 + decay * current_iteration) (Will decrease over time)
+            self.current_learning_rate = self.learning_rate / (1. + self.decay * self.iterations)
+
+    def update_params(self, layer):
+        if not hasattr(layer, 'weight_cache'):
+            layer.weight_cache = np.zeros_like(layer.weights)
+            layer.bias_cache = np.zeros_like(layer.biases)
+        
+        # Cacche(x+1) = 0.9*cache(x) + 0.1*grad^2  (We multiply cache(x) by 0.9 and the grad^2 by 0.1 which makes it increase way slower than Adagrad)
+        layer.weight_cache = self.rho * layer.weight_cache + (1 - self.rho) * layer.dweights**2
+        layer.bias_cache  = self.rho * layer.bias_cache + (1 - self.rho) * layer.dbiases**2
+
+        # W(x+1) = W(x) - a*dL_dW / (sqrt(Wcache) + ep) We now divide by the cache to make it change slower
+        # Vanilla SGD without optimizer, divided by sqrt of cache
+        layer.weights += -self.current_learning_rate * layer.dweights / (np.sqrt(layer.weight_cache) + self.epsilon)
+        layer.biases += -self.current_learning_rate  * layer.dbiases / (np.sqrt(layer.bias_cache) + self.epsilon)
+
+    def post_update_params(self):
+        self.iterations += 1
 
 # Build Model
 dense1 = Layer_Dense(2, 64)
@@ -181,7 +243,9 @@ dense2 = Layer_Dense(64, 3)
 loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
 
 # Create optimizer
-optimizer = Optimizer_SGD(decay=1e-3, momentum=0.9)
+#optimizer = Optimizer_SGD(decay=1e-3, momentum=0.9)
+#optimizer = Optimizer_Adagrad(decay=1e-4)
+#optimizer = Optimizer_RMSprop(decay=1e-4, rho=0.9) # Needs some work
 
 # Train in loop
 for epoch in range(10001):
