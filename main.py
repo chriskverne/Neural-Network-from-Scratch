@@ -197,6 +197,53 @@ class Optimizer_Adagrad:
     def post_update_params(self):
         self.iterations += 1
 
+
+class Optimizer_ADAM:
+    def __init__(self, learning_rate=0.001, decay=0, b1=0.9, b2=0.999, epsilon=1e-7):
+        self.learning_rate = learning_rate
+        self.current_learning_rate = learning_rate
+        self.decay = decay
+        self.b1 = b1
+        self.b2 = b2
+        self.epsilon = epsilon
+        self.iterations = 1  # Start from 1 for bias correction
+
+    def pre_update_params(self):
+        # Adjust learning rate with decay if decay is set
+        if self.decay:
+            self.current_learning_rate = self.learning_rate / (1 + self.decay * self.iterations)
+
+    def update_params(self, layer):
+        # Initialize momentum and cache attributes for weights and biases if not already present
+        if not hasattr(layer, 'weight_cache'):
+            layer.weight_cache = np.zeros_like(layer.weights)
+            layer.bias_cache = np.zeros_like(layer.biases)
+            layer.weight_momentums = np.zeros_like(layer.weights)
+            layer.bias_momentums = np.zeros_like(layer.biases)
+        
+        # M(t) = b1 * M(t-1) + (1-b1) * dL/dW (Momentum to converge faster)
+        layer.weight_momentums = self.b1 * layer.weight_momentums + (1 - self.b1) * layer.dweights
+        layer.bias_momentums = self.b1 * layer.bias_momentums + (1 - self.b1) * layer.dbiases
+
+        # V(t) = b2 * V(t-1) + (1 -  b2) * (dL/dW)^2
+        layer.weight_cache = self.b2 * layer.weight_cache + (1 - self.b2) * layer.dweights**2
+        layer.bias_cache = self.b2 * layer.bias_cache + (1 - self.b2) * layer.dbiases**2
+
+        # M^(t) = M(t) / (1 - B1^t)
+        # V^(t) = V(t) / (1 - b2^t)
+        weight_momentums_corrected = layer.weight_momentums / (1 - np.power(self.b1, self.iterations))
+        bias_momentums_corrected = layer.bias_momentums / (1 - np.power(self.b1, self.iterations))
+        weight_cache_corrected = layer.weight_cache / (1 - np.power(self.b2, self.iterations))
+        bias_cache_corrected = layer.bias_cache / (1 - np.power(self.b2, self.iterations))
+
+        # w(t) = w(t-1) - a * M^(t) / (sqrt(V^t) + e)
+        layer.weights += -self.current_learning_rate * weight_momentums_corrected / (np.sqrt(weight_cache_corrected) + self.epsilon)
+        layer.biases += -self.current_learning_rate * bias_momentums_corrected / (np.sqrt(bias_cache_corrected) + self.epsilon)
+
+    def post_update_params(self):
+        # Increment iteration count
+        self.iterations += 1
+
 class Optimizer_RMSprop:
     def __init__(self, learning_rate=1, decay=0, epsilon=1e-7, rho=0.9):
         self.learning_rate = learning_rate
@@ -245,6 +292,7 @@ loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
 # Create optimizer
 #optimizer = Optimizer_SGD(decay=1e-3, momentum=0.9)
 #optimizer = Optimizer_Adagrad(decay=1e-4)
+optimizer = Optimizer_ADAM(learning_rate=0.001, decay=0) # Decay does not improve ADAM for this case
 #optimizer = Optimizer_RMSprop(decay=1e-4, rho=0.9) # Needs some work
 
 # Train in loop
