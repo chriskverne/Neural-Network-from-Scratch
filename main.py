@@ -1,6 +1,7 @@
 from nnfs.datasets import spiral_data
 import numpy as np
 import nnfs
+import matplotlib.pyplot as plt
 nnfs.init()
 X, y = spiral_data(samples=100, classes=3)
 
@@ -295,7 +296,18 @@ loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
 optimizer = Optimizer_ADAM(learning_rate=0.001, decay=0) # Decay does not improve ADAM for this case
 #optimizer = Optimizer_RMSprop(decay=1e-4, rho=0.9) # Needs some work
 
+X = np.linspace(-3, 3, 200).reshape(-1, 1)
+y = X**3 - 3*X + np.random.normal(0, 1, X.shape)
+
+plt.scatter(X, y, label='Noisy Cubic Data')
+plt.xlabel('X')
+plt.ylabel('y')
+plt.title('Cubic Regression Dataset')
+plt.legend()
+plt.show()
+
 # Train in loop
+"""
 for epoch in range(10001):
     # Perform a forward pass of our training data through this layer
     dense1.forward(X)
@@ -336,7 +348,7 @@ for epoch in range(10001):
     optimizer.update_params(dense1)
     optimizer.update_params(dense2)
     optimizer.post_update_params()
-
+"""
 
 
 
