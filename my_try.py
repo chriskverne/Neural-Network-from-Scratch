@@ -53,12 +53,8 @@ class Loss_MeanSquaredError(Loss):
 
     # Backward pass
     def backward(self, dvalues, y_true):
-        # Gradient of MSE Loss with respect to predictions
-        samples = len(dvalues)
-        outputs = len(dvalues[0])
-        
         # dL/dy_pred = 2 * (y_pred - y_true) / samples
-        self.dinputs = 2 * (dvalues - y_true) / samples
+        self.dinputs = 2 * (dvalues - y_true) / len(dvalues)
 
 # SGD optimizer with learning rate decay
 class Optimizer_SGD:
@@ -102,7 +98,7 @@ loss_function = Loss_MeanSquaredError()
 optimizer = Optimizer_SGD(learning_rate=0.001, decay=1e-5)
 
 # Training loop
-epochs = 30000
+epochs = 6000
 for epoch in range(epochs):
     # Forward pass
     dense1.forward(X)
@@ -114,8 +110,8 @@ for epoch in range(epochs):
     # Calculate loss
     loss = loss_function.calculate(dense3.output, Y)
 
-    # Print loss every 1000 epochs
-    if epoch % 1000 == 0:
+    # Print loss every 100 epochs
+    if epoch % 100 == 0:
         print(f'epoch: {epoch}, loss: {loss}')
 
     # Backward pass
