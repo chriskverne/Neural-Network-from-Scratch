@@ -2,9 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class Layer_Dense:
-    def __init__(self, n_inputs, n_neurons):
+    def __init__(self, n_inputs, n_neurons, is_first_layer=False):
         self.weights = 0.1 * np.random.randn(n_inputs, n_neurons)
         self.biases = np.zeros((1, n_neurons))
+        self.is_first_layer = is_first_layer
 
     # Forward pass
     def forward(self, inputs):
@@ -20,9 +21,11 @@ class Layer_Dense:
 
     # so we need to multiply dvalues with x (for weights) or 1 (for biases)
     def backward(self, dvalues):
-        self.dweights = np.dot(self.inputs.T, dvalues) # dweights = dvalues * x (since da/dw1 = x)
-        self.dbiases = np.sum(dvalues, axis=0, keepdims=True) # dbiases = dvalues * 1 (since da/db1 = 1)
-        self.dinputs = np.dot(dvalues, self.weights.T) # pass gradient (dvalues) from one layer to the next
+        self.dweights = np.dot(self.inputs.T, dvalues) # multiply derivative with x
+        self.dbiases = np.sum(dvalues, axis=0, keepdims=True) # dbiases = dvalues (since we multiply with 1)
+        # Only compute dinputs if not the first layer (since it's not used there)
+        if not self.is_first_layer:
+            self.dinputs = np.dot(dvalues, self.weights.T)
 
 # ReLU activation
 class Activation_ReLU:
@@ -36,32 +39,26 @@ class Activation_ReLU:
     # dvalues = dL/dy * dy/dz1
     # derivative of relu: dz1/da = (1 or 0)
 
-    # therefore we either multiple wiht 1 or 0
+    # therefore we either multiple with 1 or 0
     def backward(self, dvalues):
         self.dinputs = dvalues.copy()
         # if inputs (a) is less than 0, multiply dvalues with 0
-        # else multiply dvalus with 1
+        # else multiply dvalues with 1
         self.dinputs[self.inputs <= 0] = 0 
 
-# Mean Squared Error loss
+# Rest of the code remains the same...
 class Loss_MeanSquaredError:
-    # Takes in our predictions and the true values
-    # L = (y - T)^2
     def forward(self, y_pred, y_true):
         return np.mean((y_pred - y_true) ** 2, axis=-1)
 
-    # Backward pass
-    # dL/dy = 2*y - 2*true
     def backward(self, y_pred, y_true):
         self.dinputs = 2 * (y_pred - y_true) / len(y_pred)
     
-    # batch processing
     def calculate(self, output, y):
         sample_losses = self.forward(output, y)
         data_loss = np.mean(sample_losses)
         return data_loss
 
-# SGD optimizer with learning rate decay
 class Optimizer_SGD:
     def __init__(self, learning_rate, decay):
         self.learning_rate = learning_rate
@@ -70,25 +67,20 @@ class Optimizer_SGD:
         self.iterations = 0
 
     def update_params(self, layer):
-        # new_weight = old_weight - a * dL/dw
-        # new_bias = old_bias - a * dL/db
         layer.weights -= self.current_learning_rate * layer.dweights
         layer.biases -= self.current_learning_rate * layer.dbiases
 
     def post_update_params(self):
-        # make the learning rate lower after each iteration
         if self.decay:
             self.current_learning_rate = self.learning_rate / (1. + self.decay * self.iterations)
-        
         self.iterations += 1
-
 
 # Data
 X = np.linspace(-3, 3, 128).reshape(-1, 1)
 Y = X**3 - 3*X + np.random.normal(0, 1, X.shape)
 
 # Set up model with three layers
-dense1 = Layer_Dense(1, 128)  # Input layer -> Hidden layer
+dense1 = Layer_Dense(1, 128, is_first_layer=True)  # Input layer -> Hidden layer
 activation1 = Activation_ReLU()
 dense2 = Layer_Dense(128, 64)  # Hidden layer -> Hidden layer
 activation2 = Activation_ReLU()
@@ -116,24 +108,19 @@ for epoch in range(5000):
     if epoch % 100 == 0:
         print(f'epoch: {epoch}, loss: {loss}')
 
-    # Backward pass (calculates gradients for the loss with respect to each parameter)
+    # Backward pass
     loss_function.backward(dense3.output, Y)
     dense3.backward(loss_function.dinputs)
     activation2.backward(dense3.dinputs)
     dense2.backward(activation2.dinputs)
     activation1.backward(dense2.dinputs)
-    dense1.backward(activation1.dinputs)
+    dense1.backward(activation1.dinputs)  # dinputs won't be computed here
 
     # Update weights and biases
-    optimizer.update_params(dense1) # update weights and biases layer 1
-    optimizer.update_params(dense2) # update weights and biases layer 2
-    optimizer.update_params(dense3) # update weights and biases layer 3
-    optimizer.post_update_params() # increase iteration (to decrease learning rate)
-
-
-
-
-# Plotting Code
+    optimizer.update_params(dense1)
+    optimizer.update_params(dense2)
+    optimizer.update_params(dense3)
+    optimizer.post_update_params()
 
 # Generate predictions
 dense1.forward(X)
@@ -143,13 +130,12 @@ activation2.forward(dense2.output)
 dense3.forward(activation2.output)
 predictions = dense3.output
 
-# Sort X and corresponding predictions/Y values for smooth plotting
+# Plotting code remains the same...
 sort_indices = np.argsort(X.flatten())
 X_sorted = X[sort_indices]
 Y_sorted = Y[sort_indices]
 predictions_sorted = predictions[sort_indices]
 
-# Plot actual data vs model predictions
 plt.figure(figsize=(10, 6))
 plt.scatter(X, Y, color='blue', alpha=0.5, label='Actual Data')
 plt.plot(X_sorted, predictions_sorted, color='red', linewidth=2, label='Model Predictions')
@@ -160,7 +146,6 @@ plt.legend()
 plt.grid(True)
 plt.show()
 
-# Plot training loss over epochs
 plt.figure(figsize=(10, 6))
 plt.plot(loss_history, color='blue', linewidth=2)
 plt.xlabel('Epoch')
